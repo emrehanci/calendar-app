@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Calendar, Modal, Form, Select, DatePicker, Button, Spin, message, Popconfirm, Input, Tag
+  Calendar, Modal, Form, Select, DatePicker, Button, Spin, message, Popconfirm, Input, Tag, List
 } from 'antd';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
@@ -28,6 +28,10 @@ const App = () => {
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [typeColorMap, setTypeColorMap] = useState({});
   const [deleteTarget, setDeleteTarget] = useState({ key: '', value: '' });
+  const [selectedDayEvents, setSelectedDayEvents] = useState([]);
+  const [dayModalVisible, setDayModalVisible] = useState(false);
+  const [statsModalVisible, setStatsModalVisible] = useState(false);
+  const [statistics, setStatistics] = useState([]);
   const [filters, setFilters] = useState({
     name: null,
     type: null,
@@ -139,6 +143,20 @@ const App = () => {
   const dateCellRender = value => {
     const currentDate = value.format('YYYY-MM-DD');
     const dayEvents = filteredEvents.filter(e => dayjs(currentDate).isBetween(e.start, e.end, null, '[]'));
+  
+    if (dayEvents.length === 0) return null;
+  
+    if (dayEvents.length > 2) {
+      return (
+        <div onClick={() => {
+          setSelectedDayEvents(dayEvents);
+          setDayModalVisible(true);
+        }} style={{ cursor: 'pointer', color: '#1890ff', textAlign: 'center' }}>
+          {dayEvents.length}+ events
+        </div>
+      );
+    }
+  
     return (
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {dayEvents.map((item) => {
@@ -160,7 +178,45 @@ const App = () => {
         })}
       </ul>
     );
-  };
+  };  
+
+  const calculateStatistics = () => {
+    const statsMap = {};
+  
+    events.forEach(event => {
+      const days = dayjs(event.end).diff(dayjs(event.start), 'day') + 1;
+  
+      if (!statsMap[event.name]) {
+        statsMap[event.name] = {
+          totalDays: 0,
+          types: {},
+          lastDate: event.end,
+        };
+      }
+  
+      statsMap[event.name].totalDays += days;
+  
+      if (!statsMap[event.name].types[event.type]) {
+        statsMap[event.name].types[event.type] = 0;
+      }
+  
+      statsMap[event.name].types[event.type] += days;
+  
+      if (dayjs(event.end).isAfter(dayjs(statsMap[event.name].lastDate))) {
+        statsMap[event.name].lastDate = event.end;
+      }
+    });
+  
+    const statList = Object.entries(statsMap).map(([name, data]) => ({
+      name,
+      totalDays: data.totalDays,
+      types: data.types,
+      lastDate: data.lastDate,
+    }));
+  
+    setStatistics(statList);
+    setStatsModalVisible(true);
+  };  
 
   if (!dropdownData) return <Spin />;
 
@@ -190,6 +246,7 @@ const App = () => {
           dropdownForm.setFieldsValue({ key: 'names', value: '', color: '' });
           setDropdownModalVisible(true);
         }}>Manage Dropdowns</Button>
+        <Button onClick={calculateStatistics}>Show Statistics</Button>
         <Button type="primary" onClick={() => setModalVisible(true)}>Add New Entry</Button>
       </div>
 
@@ -337,6 +394,61 @@ const App = () => {
             Delete
           </Button>
         </Form>
+      </Modal>
+      <Modal
+        title="Events on this day"
+        open={dayModalVisible}
+        onCancel={() => setDayModalVisible(false)}
+        footer={null}
+        width={800}
+      >
+        <List
+          dataSource={selectedDayEvents}
+          renderItem={(item) => (
+            <List.Item
+              actions={[
+                <a key="edit" onClick={() => {
+                  onUpdate(item);
+                  setDayModalVisible(false);
+                }}>Edit</a>,
+                <a key="delete" onClick={() => {
+                  onDelete(item);
+                  setDayModalVisible(false);
+                }}>Delete</a>
+              ]}
+            >
+              <Tag color={typeColorMap[item.type] || '#595959'}>{item.type}</Tag>
+              <strong style={{ marginLeft: 8 }}>{item.name}</strong> ({item.start} → {item.end})
+            </List.Item>
+          )}
+        />
+      </Modal>
+      <Modal
+        title="Leave Statistics"
+        open={statsModalVisible}
+        onCancel={() => setStatsModalVisible(false)}
+        footer={null}
+        width={600}
+      >
+        <List
+          dataSource={statistics}
+          renderItem={item => (
+            <List.Item>
+              <div style={{ width: '100%' }}>
+                <h4>{item.name}</h4>
+                <p><strong>Total Days:</strong> {item.totalDays}</p>
+                <p><strong>Last Leave:</strong> {item.lastDate}</p>
+                <div>
+                  {Object.entries(item.types).map(([type, count]) => (
+                    <Tag key={type} color={typeColorMap[type] || 'default'}>
+                      {type}: {count} day(s)
+                    </Tag>
+                  ))}
+                </div>
+              </div>
+            </List.Item>
+          )}
+        />
       </Modal>
     </div>
   );

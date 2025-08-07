@@ -19,6 +19,16 @@
       "team": "Frontend",
       "domain": "Node.js",
       "location": "Munich"
+    },
+    {
+      "id": "efc19984-691e-4fbe-8ca9-e75cd6dffc7d",
+      "name": "Bob",
+      "type": "Work from Home",
+      "team": "Frontend",
+      "domain": "React",
+      "location": "Munich",
+      "start": "2025-08-01",
+      "end": "2025-08-21"
     }
   ],
   "dropdowns": {
