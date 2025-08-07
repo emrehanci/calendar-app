@@ -1,3 +1,36 @@
 {
-  "events": []
+  "events": [
+    {
+      "id": "26374d52-9f0f-4d83-b17f-65e3e3d158f0",
+      "name": "Alice",
+      "start": "2025-08-07",
+      "end": "2025-08-15",
+      "type": "Vacation",
+      "team": "Frontend",
+      "domain": "React",
+      "location": "Munich"
+    },
+    {
+      "id": "7a8ccc49-4f30-4968-b945-5089d7203287",
+      "name": "Bob",
+      "start": "2025-08-04",
+      "end": "2025-08-23",
+      "type": "Sick Leave",
+      "team": "Frontend",
+      "domain": "Node.js",
+      "location": "Munich"
+    }
+  ],
+  "dropdowns": {
+    "names": ["Alice", "Bob", "Charlie"],
+    "types": ["Vacation", "Sick Leave", "Work from Home"],
+    "teams": ["Frontend", "Backend", "QA"],
+    "domains": ["React", "Node.js", "DevOps"],
+    "locations": ["Berlin", "Munich", "Remote"],
+    "typeColors": {
+      "Vacation": "#52c41a",
+      "Sick Leave": "#f5222d",
+      "Work from Home": "#1890ff"
+    }
+  }
 }

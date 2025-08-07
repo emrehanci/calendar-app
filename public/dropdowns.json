@@ -1,8 +1,0 @@
-{
-    "names": ["Alice", "Bob", "Charlie"],
-    "types": ["Vacation", "Sick Leave", "Work from Home"],
-    "teams": ["Frontend", "Backend", "QA"],
-    "domains": ["React", "Node.js", "DevOps"],
-    "locations": ["Berlin", "Munich", "Remote"]
-  }
-  

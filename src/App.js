@@ -16,10 +16,14 @@ const App = () => {
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [dropdownData, setDropdownData] = useState(null);
   const [selectedEventId, setSelectedEventId] = useState(null);
+  const [typeColorMap, setTypeColorMap] = useState({});
 
   useEffect(() => {
     fetchEvents();
-    axios.get('/dropdowns.json').then(res => setDropdownData(res.data));
+    axios.get('http://localhost:3001/dropdowns').then(res => {
+      setDropdownData(res.data);
+      setTypeColorMap(res.data.typeColors || {});
+    });
   }, []);
 
   const fetchEvents = async () => {
@@ -31,11 +35,11 @@ const App = () => {
   const createEvent = async (event) => {
     await axios.post('http://localhost:3001/events', event);
   };
-  
+
   const updateEvent = async (id, event) => {
     await axios.put(`http://localhost:3001/events/${id}`, event);
   };
-  
+
   const deleteEvent = async (id) => {
     await axios.delete(`http://localhost:3001/events/${id}`);
   };
@@ -84,7 +88,7 @@ const App = () => {
     setModalVisible(true);
     setEditMode(true);
     setSelectedEventId(event.id);
-  }
+  };
 
   const onDelete = async (event) => {
     const updated = events.filter(e => e.id !== event.id);
@@ -92,24 +96,30 @@ const App = () => {
     setFilteredEvents(updated);
     await deleteEvent(event.id);
     message.success('Event deleted');
-  }
+  };
 
   const dateCellRender = value => {
     const currentDate = value.format('YYYY-MM-DD');
     const dayEvents = filteredEvents.filter(e => dayjs(currentDate).isBetween(e.start, e.end, null, '[]'));
     return (
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {dayEvents.map((item) => (
-          <Popconfirm
-          title="Do you want to update or delete this event?"
-          onConfirm={() => onDelete(item)}
-          onCancel={() => onUpdate(item)}
-          okText="Delete"
-          cancelText="Update"
-        >
-          <strong>{item.name}</strong> - {item.type}
-        </Popconfirm>
-        ))}
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        {dayEvents.map((item) => {
+          const color = typeColorMap[item.type] || '#595959';
+          return (
+            <Popconfirm
+              key={item.id}
+              title="Do you want to update or delete this event?"
+              onConfirm={() => onDelete(item)}
+              onCancel={() => onUpdate(item)}
+              okText="Delete"
+              cancelText="Update"
+            >
+              <li style={{ cursor: 'pointer', color }}>
+                <strong>{item.name}</strong> - {item.type}
+              </li>
+            </Popconfirm>
+          );
+        })}
       </ul>
     );
   };
