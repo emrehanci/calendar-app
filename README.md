@@ -6,6 +6,12 @@ Includes advanced filtering, daily event lists, colored tags, and a statistics v
 
 ---
 
+## 🌐 Demo
+
+👉 [Live App on Vercel](https://calendar-app-wine-seven.vercel.app/)
+
+---
+
 ## Features
 
 - 🗓 **Calendar view** using Ant Design `Calendar`
