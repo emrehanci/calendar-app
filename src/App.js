@@ -4,11 +4,17 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 
 const { Option } = Select;
+const { RangePicker } = DatePicker;
+
 dayjs.extend(isBetween);
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
 
 const App = () => {
   const [modalVisible, setModalVisible] = useState(false);
@@ -22,6 +28,14 @@ const App = () => {
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [typeColorMap, setTypeColorMap] = useState({});
   const [deleteTarget, setDeleteTarget] = useState({ key: '', value: '' });
+  const [filters, setFilters] = useState({
+    name: null,
+    type: null,
+    team: null,
+    domain: null,
+    location: null,
+    dateRange: null
+  });
 
   useEffect(() => {
     fetchEvents();
@@ -68,20 +82,18 @@ const App = () => {
     }
 
     setEvents(updatedEvents);
-    setFilteredEvents(updatedEvents);
+    applyFilters(updatedEvents, filters);
+
     if (editMode && selectedEventId) {
       await updateEvent(selectedEventId, newEvent);
     } else {
       await createEvent(newEvent);
     }
+
     setModalVisible(false);
     form.resetFields();
     setEditMode(false);
     setSelectedEventId(null);
-  };
-
-  const handleFilter = person => {
-    setFilteredEvents(events.filter(e => e.name === person));
   };
 
   const onUpdate = (event) => {
@@ -98,9 +110,30 @@ const App = () => {
   const onDelete = async (event) => {
     const updated = events.filter(e => e.id !== event.id);
     setEvents(updated);
-    setFilteredEvents(updated);
+    applyFilters(updated, filters);
     await deleteEvent(event.id);
     message.success('Event deleted');
+  };
+
+  const handleFilterChange = (key, value) => {
+    const updated = { ...filters, [key]: value };
+    setFilters(updated);
+    applyFilters(events, updated);
+  };
+
+  const applyFilters = (allEvents, filterObj) => {
+    const filtered = allEvents.filter(event => {
+      return (!filterObj.name || event.name === filterObj.name) &&
+             (!filterObj.type || event.type === filterObj.type) &&
+             (!filterObj.team || event.team === filterObj.team) &&
+             (!filterObj.domain || event.domain === filterObj.domain) &&
+             (!filterObj.location || event.location === filterObj.location) &&
+             (!filterObj.dateRange || (
+                dayjs(event.start).isSameOrAfter(filterObj.dateRange[0], 'day') &&
+                dayjs(event.end).isSameOrBefore(filterObj.dateRange[1], 'day')
+             ));
+    });
+    setFilteredEvents(filtered);
   };
 
   const dateCellRender = value => {
@@ -134,24 +167,35 @@ const App = () => {
   return (
     <div style={{ padding: 24 }}>
       <h2>Calendar App</h2>
-      <div style={{ marginBottom: 16 }}>
-        <Select
-          placeholder="Filter by person"
-          onChange={handleFilter}
-          allowClear
-          style={{ width: 200 }}
-        >
-          {dropdownData.names.map(name => <Option key={name} value={name}>{name}</Option>)}
+
+      {/* Gelişmiş Filtre Alanları */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+        <Select placeholder="Name" allowClear style={{ width: 150 }} onChange={(val) => handleFilterChange('name', val)}>
+          {dropdownData.names.map(val => <Option key={val} value={val}>{val}</Option>)}
         </Select>
-        <Button type="primary" style={{ marginLeft: 16 }} onClick={() => setModalVisible(true)}>Add New Entry</Button>
-        <Button style={{ marginLeft: 8 }} onClick={() => {
+        <Select placeholder="Type" allowClear style={{ width: 150 }} onChange={(val) => handleFilterChange('type', val)}>
+          {dropdownData.types.map(val => <Option key={val} value={val}>{val}</Option>)}
+        </Select>
+        <Select placeholder="Team" allowClear style={{ width: 150 }} onChange={(val) => handleFilterChange('team', val)}>
+          {dropdownData.teams.map(val => <Option key={val} value={val}>{val}</Option>)}
+        </Select>
+        <Select placeholder="Domain" allowClear style={{ width: 150 }} onChange={(val) => handleFilterChange('domain', val)}>
+          {dropdownData.domains.map(val => <Option key={val} value={val}>{val}</Option>)}
+        </Select>
+        <Select placeholder="Location" allowClear style={{ width: 150 }} onChange={(val) => handleFilterChange('location', val)}>
+          {dropdownData.locations.map(val => <Option key={val} value={val}>{val}</Option>)}
+        </Select>
+        <RangePicker onChange={(range) => handleFilterChange('dateRange', range)} />
+        <Button style={{ marginLeft: 'auto' }} onClick={() => {
           dropdownForm.setFieldsValue({ key: 'names', value: '', color: '' });
           setDropdownModalVisible(true);
         }}>Manage Dropdowns</Button>
+        <Button type="primary" onClick={() => setModalVisible(true)}>Add New Entry</Button>
       </div>
+
       <Calendar cellRender={dateCellRender} />
 
-      {/* Ana Event Modal */}
+      {/* Event Modal */}
       <Modal
         title={editMode ? "Update Event" : "Add New Holiday"}
         open={modalVisible}
