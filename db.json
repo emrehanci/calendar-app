@@ -1,4 +1,7 @@
 {
+  "password": {
+    "value": "letmein123"
+  },
   "events": [
     {
       "id": "26374d52-9f0f-4d83-b17f-65e3e3d158f0",
@@ -21,14 +24,14 @@
       "location": "Munich"
     },
     {
-      "id": "efc19984-691e-4fbe-8ca9-e75cd6dffc7d",
-      "name": "Bob",
+      "id": "7251d5d9-61d4-4f76-8e9a-b4159e426539",
+      "name": "Emre",
       "type": "Work from Home",
       "team": "Frontend",
-      "domain": "React",
-      "location": "Munich",
-      "start": "2025-08-01",
-      "end": "2025-08-21"
+      "domain": "Node.js",
+      "location": "Berlin",
+      "start": "2025-08-04",
+      "end": "2025-08-28"
     }
   ],
   "dropdowns": {

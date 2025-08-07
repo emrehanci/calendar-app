@@ -1,70 +1,48 @@
-# Getting Started with Create React App
+# Calendar App (React + Ant Design + json-server)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A **React** application for managing people's leaves on a calendar view, built with **Ant Design** components.  
+Stores data persistently using **json-server** for both `events` and `dropdowns`.  
+Includes advanced filtering, daily event lists, colored tags, and a statistics view.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## Features
 
-### `npm start`
+- 🗓 **Calendar view** using Ant Design `Calendar`
+- ➕ **Add / update / delete events** via modal form
+- 🎯 **Advanced filtering** by Name, Type, Team, Domain, Location, Date Range
+- 🏷 **Colored tags** for event types (colors stored in `typeColors`)
+- 📚 **Dropdown management** (add/remove) — *password-protected modal*
+- 🔐 **Manage Dropdowns** access control (password stored in DB)
+- 📆 **3+ events per day compression** with clickable daily list modal
+- 📈 **Statistics view** showing total days per person, type breakdown, last leave date
+- 💾 **Persistent backend** via `json-server` (optional deploy on Render)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Tech Stack
 
-### `npm test`
+- **React** (Create React App)
+- **Ant Design** UI library
+- **dayjs** for date handling
+- **uuid** for unique IDs
+- **axios** for HTTP requests
+- **json-server** for backend
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+## Installation
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```bash
+# 1. Clone the repository
+git clone https://github.com/emrehanci/calendar-app.git
+cd calendar-app
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+# 2. Install dependencies
+npm install
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+# 3. Start json-server (runs on port 3001)
+npx json-server --watch db.json --port 3001
 
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+# 4. Start the React app (runs on port 3000)
+npm start

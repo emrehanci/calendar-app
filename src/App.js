@@ -31,6 +31,9 @@ const App = () => {
   const [selectedDayEvents, setSelectedDayEvents] = useState([]);
   const [dayModalVisible, setDayModalVisible] = useState(false);
   const [statsModalVisible, setStatsModalVisible] = useState(false);
+  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
+  const [passwordInputVisible, setPasswordInputVisible] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
   const [statistics, setStatistics] = useState([]);
   const [filters, setFilters] = useState({
     name: null,
@@ -221,10 +224,8 @@ const App = () => {
   if (!dropdownData) return <Spin />;
 
   return (
-    <div style={{ padding: 24 }}>
-      <h2>Calendar App</h2>
-
-      {/* Gelişmiş Filtre Alanları */}
+    <div style={{ padding: 24, paddingTop: 0 }}>
+      <h2>CoCo Calendar</h2>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <Select placeholder="Name" allowClear style={{ width: 150 }} onChange={(val) => handleFilterChange('name', val)}>
           {dropdownData.names.map(val => <Option key={val} value={val}>{val}</Option>)}
@@ -242,17 +243,20 @@ const App = () => {
           {dropdownData.locations.map(val => <Option key={val} value={val}>{val}</Option>)}
         </Select>
         <RangePicker onChange={(range) => handleFilterChange('dateRange', range)} />
-        <Button style={{ marginLeft: 'auto' }} onClick={() => {
-          dropdownForm.setFieldsValue({ key: 'names', value: '', color: '' });
-          setDropdownModalVisible(true);
-        }}>Manage Dropdowns</Button>
+        <Button
+          style={{ marginLeft: 'auto' }}
+          onClick={() => {
+            setPasswordInputVisible(true);
+          }}
+        >
+          Manage Dropdowns
+        </Button>
         <Button onClick={calculateStatistics}>Show Statistics</Button>
         <Button type="primary" onClick={() => setModalVisible(true)}>Add New Entry</Button>
       </div>
 
       <Calendar cellRender={dateCellRender} />
 
-      {/* Event Modal */}
       <Modal
         title={editMode ? "Update Event" : "Add New Holiday"}
         open={modalVisible}
@@ -281,7 +285,6 @@ const App = () => {
         </Form>
       </Modal>
 
-      {/* Dropdown Yönetim Modalı */}
       <Modal
         title="Manage Dropdowns"
         open={dropdownModalVisible}
@@ -450,6 +453,38 @@ const App = () => {
           )}
         />
       </Modal>
+      <Modal
+        title="Enter Admin Password"
+        open={passwordInputVisible}
+        onCancel={() => {
+          setPasswordInputVisible(false);
+          setPasswordInput('');
+        }}
+        onOk={async () => {
+          try {
+            const res = await axios.get('http://localhost:3001/password');
+            if (res.data.value === passwordInput) {
+              setPasswordInputVisible(false);
+              setIsPasswordVerified(true);
+              setDropdownModalVisible(true);
+              setPasswordInput('');
+              dropdownForm.setFieldsValue({ key: 'names', value: '', color: '' });
+            } else {
+              message.error('Incorrect password');
+            }
+          } catch {
+            message.error('Failed to verify password');
+          }
+        }}
+        okText="Verify"
+      >
+        <Input.Password
+          value={passwordInput}
+          onChange={(e) => setPasswordInput(e.target.value)}
+          placeholder="Enter password"
+        />
+      </Modal>
+
     </div>
   );
 };
