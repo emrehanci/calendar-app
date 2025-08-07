@@ -22,11 +22,64 @@
     }
   ],
   "dropdowns": {
-    "names": ["Alice", "Bob", "Charlie"],
-    "types": ["Vacation", "Sick Leave", "Work from Home"],
-    "teams": ["Frontend", "Backend", "QA"],
-    "domains": ["React", "Node.js", "DevOps"],
-    "locations": ["Berlin", "Munich", "Remote"],
+    "item": {
+      "names": [
+        "Alice",
+        "Bob",
+        "Charlie"
+      ],
+      "types": [
+        "Vacation",
+        "Sick Leave",
+        "Work from Home"
+      ],
+      "teams": [
+        "Frontend",
+        "Backend",
+        "QA"
+      ],
+      "domains": [
+        "React",
+        "Node.js",
+        "DevOps"
+      ],
+      "locations": [
+        "Berlin",
+        "Munich",
+        "Remote"
+      ],
+      "typeColors": {
+        "Vacation": "#52c41a",
+        "Sick Leave": "#f5222d",
+        "Work from Home": "#1890ff"
+      }
+    },
+    "names": [
+      "Alice",
+      "Bob",
+      "Charlie",
+      "Emre"
+    ],
+    "types": [
+      "Vacation",
+      "Sick Leave",
+      "Work from Home"
+    ],
+    "teams": [
+      "Frontend",
+      "Backend",
+      "QA"
+    ],
+    "domains": [
+      "React",
+      "Node.js",
+      "DevOps"
+    ],
+    "locations": [
+      "Berlin",
+      "Munich",
+      "Remote"
+    ],
     "typeColors": {
       "Vacation": "#52c41a",
       "Sick Leave": "#f5222d",

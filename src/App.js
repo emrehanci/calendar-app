@@ -1,22 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, Modal, Form, Select, DatePicker, Button, Spin, message, Popconfirm } from 'antd';
+import {
+  Calendar, Modal, Form, Select, DatePicker, Button, Spin, message, Popconfirm, Input
+} from 'antd';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
-const { confirm } = Modal;
+
 const { Option } = Select;
 dayjs.extend(isBetween);
 
 const App = () => {
   const [modalVisible, setModalVisible] = useState(false);
+  const [dropdownModalVisible, setDropdownModalVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [form] = Form.useForm();
+  const [dropdownForm] = Form.useForm();
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [dropdownData, setDropdownData] = useState(null);
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [typeColorMap, setTypeColorMap] = useState({});
+  const [deleteTarget, setDeleteTarget] = useState({ key: '', value: '' });
 
   useEffect(() => {
     fetchEvents();
@@ -139,9 +144,14 @@ const App = () => {
           {dropdownData.names.map(name => <Option key={name} value={name}>{name}</Option>)}
         </Select>
         <Button type="primary" style={{ marginLeft: 16 }} onClick={() => setModalVisible(true)}>Add New Entry</Button>
+        <Button style={{ marginLeft: 8 }} onClick={() => {
+          dropdownForm.setFieldsValue({ key: 'names', value: '', color: '' });
+          setDropdownModalVisible(true);
+        }}>Manage Dropdowns</Button>
       </div>
       <Calendar cellRender={dateCellRender} />
 
+      {/* Ana Event Modal */}
       <Modal
         title={editMode ? "Update Event" : "Add New Holiday"}
         open={modalVisible}
@@ -154,37 +164,134 @@ const App = () => {
         okText="Submit"
       >
         <Form form={form} layout="vertical" onFinish={handleAddOrUpdate}>
-          <Form.Item name="name" label="Name" rules={[{ required: true }]}> 
-            <Select>
-              {dropdownData.names.map(name => <Option key={name} value={name}>{name}</Option>)}
-            </Select>
-          </Form.Item>
-          <Form.Item name="start" label="Start Date" rules={[{ required: true }]}> 
+          {['name', 'type', 'team', 'domain', 'location'].map(field => (
+            <Form.Item key={field} name={field} label={field.charAt(0).toUpperCase() + field.slice(1)} rules={[{ required: true }]}>
+              <Select>
+                {dropdownData[field + 's'].map(val => <Option key={val} value={val}>{val}</Option>)}
+              </Select>
+            </Form.Item>
+          ))}
+          <Form.Item name="start" label="Start Date" rules={[{ required: true }]}>
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="end" label="End Date" rules={[{ required: true }]}> 
+          <Form.Item name="end" label="End Date" rules={[{ required: true }]}>
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="type" label="Type" rules={[{ required: true }]}> 
-            <Select>
-              {dropdownData.types.map(type => <Option key={type} value={type}>{type}</Option>)}
+        </Form>
+      </Modal>
+
+      {/* Dropdown Yönetim Modalı */}
+      <Modal
+        title="Manage Dropdowns"
+        open={dropdownModalVisible}
+        onCancel={() => setDropdownModalVisible(false)}
+        onOk={() => dropdownForm.submit()}
+        okText="Add"
+      >
+        <hr />
+        <h4>Add Dropdown Value</h4>
+        <Form
+          form={dropdownForm}
+          layout="vertical"
+          onFinish={async ({ key, value, color }) => {
+            const newDropdown = { ...dropdownData };
+            if (!newDropdown[key]) {
+              message.error('Invalid dropdown key.');
+              return;
+            }
+            if (newDropdown[key].includes(value)) {
+              message.warning('This value already exists.');
+              return;
+            }
+            newDropdown[key] = [...newDropdown[key], value];
+            if (key === "types" && color) {
+              newDropdown.typeColors = {
+                ...newDropdown.typeColors,
+                [value]: color
+              };
+            }
+            try {
+              await axios.patch('http://localhost:3001/dropdowns', newDropdown);
+              setDropdownData(newDropdown);
+              setTypeColorMap(newDropdown.typeColors || {});
+              message.success('Dropdown updated');
+              dropdownForm.resetFields();
+              setDropdownModalVisible(false);
+            } catch (err) {
+              message.error('Update failed');
+            }
+          }}
+        >
+          <Form.Item name="key" label="Dropdown Key" rules={[{ required: true }]}>
+            <Select placeholder="Select dropdown to update">
+              <Option value="names">Names</Option>
+              <Option value="types">Types</Option>
+              <Option value="teams">Teams</Option>
+              <Option value="domains">Domains</Option>
+              <Option value="locations">Locations</Option>
             </Select>
           </Form.Item>
-          <Form.Item name="team" label="Team" rules={[{ required: true }]}> 
-            <Select>
-              {dropdownData.teams.map(team => <Option key={team} value={team}>{team}</Option>)}
+          <Form.Item name="value" label="New Value" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="color" label="Color (only for types)">
+            <Input type="color" />
+          </Form.Item>
+        </Form>
+
+        <hr />
+        <h4>Delete Dropdown Value</h4>
+        <Form layout="inline">
+          <Form.Item label="Dropdown" required>
+            <Select
+              value={deleteTarget.key}
+              onChange={key => setDeleteTarget(prev => ({ ...prev, key, value: '' }))}
+              style={{ width: 150 }}
+            >
+              <Option value="names">Names</Option>
+              <Option value="types">Types</Option>
+              <Option value="teams">Teams</Option>
+              <Option value="domains">Domains</Option>
+              <Option value="locations">Locations</Option>
             </Select>
           </Form.Item>
-          <Form.Item name="domain" label="Domain" rules={[{ required: true }]}> 
-            <Select>
-              {dropdownData.domains.map(domain => <Option key={domain} value={domain}>{domain}</Option>)}
+          <Form.Item label="Value" style={{ marginTop: 8 }} required>
+            <Select
+              value={deleteTarget.value}
+              onChange={val => setDeleteTarget(prev => ({ ...prev, value: val }))}
+              disabled={!deleteTarget.key}
+              style={{ width: 180 }}
+            >
+              {dropdownData?.[deleteTarget.key]?.map(val => (
+                <Option key={val} value={val}>{val}</Option>
+              ))}
             </Select>
           </Form.Item>
-          <Form.Item name="location" label="Location" rules={[{ required: true }]}> 
-            <Select>
-              {dropdownData.locations.map(loc => <Option key={loc} value={loc}>{loc}</Option>)}
-            </Select>
-          </Form.Item>
+          <Button
+            style={{ marginTop: 8 }} 
+            danger
+            type="primary"
+            disabled={!deleteTarget.key || !deleteTarget.value}
+            onClick={async () => {
+              const { key, value } = deleteTarget;
+              const newDropdown = { ...dropdownData };
+              newDropdown[key] = newDropdown[key].filter(v => v !== value);
+              if (key === 'types' && newDropdown.typeColors) {
+                delete newDropdown.typeColors[value];
+              }
+              try {
+                await axios.patch('http://localhost:3001/dropdowns', newDropdown);
+                setDropdownData(newDropdown);
+                setTypeColorMap(newDropdown.typeColors || {});
+                message.success('Value deleted');
+                setDeleteTarget({ key: '', value: '' });
+              } catch (err) {
+                message.error('Failed to delete');
+              }
+            }}
+          >
+            Delete
+          </Button>
         </Form>
       </Modal>
     </div>
