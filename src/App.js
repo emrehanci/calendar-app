@@ -46,28 +46,28 @@ const App = () => {
 
   useEffect(() => {
     fetchEvents();
-    axios.get('http://localhost:3001/dropdowns').then(res => {
+    axios.get('https://calendar-json-server-gof4.onrender.com//dropdowns').then(res => {
       setDropdownData(res.data);
       setTypeColorMap(res.data.typeColors || {});
     });
   }, []);
 
   const fetchEvents = async () => {
-    const res = await axios.get('http://localhost:3001/events');
+    const res = await axios.get('https://calendar-json-server-gof4.onrender.com//events');
     setEvents(res.data);
     setFilteredEvents(res.data);
   };
 
   const createEvent = async (event) => {
-    await axios.post('http://localhost:3001/events', event);
+    await axios.post('https://calendar-json-server-gof4.onrender.com//events', event);
   };
 
   const updateEvent = async (id, event) => {
-    await axios.put(`http://localhost:3001/events/${id}`, event);
+    await axios.put(`https://calendar-json-server-gof4.onrender.com//events/${id}`, event);
   };
 
   const deleteEvent = async (id) => {
-    await axios.delete(`http://localhost:3001/events/${id}`);
+    await axios.delete(`https://calendar-json-server-gof4.onrender.com//events/${id}`);
   };
 
   const handleAddOrUpdate = async values => {
@@ -221,7 +221,23 @@ const App = () => {
     setStatsModalVisible(true);
   };  
 
-  if (!dropdownData) return <Spin />;
+  if (!dropdownData) {
+    return <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+      }}>
+      <Spin size="large" />
+    </div>;
+  }
 
   return (
     <div style={{ padding: 24, paddingTop: 0 }}>
@@ -315,7 +331,7 @@ const App = () => {
               };
             }
             try {
-              await axios.patch('http://localhost:3001/dropdowns', newDropdown);
+              await axios.patch('https://calendar-json-server-gof4.onrender.com//dropdowns', newDropdown);
               setDropdownData(newDropdown);
               setTypeColorMap(newDropdown.typeColors || {});
               message.success('Dropdown updated');
@@ -384,7 +400,7 @@ const App = () => {
                 delete newDropdown.typeColors[value];
               }
               try {
-                await axios.patch('http://localhost:3001/dropdowns', newDropdown);
+                await axios.patch('https://calendar-json-server-gof4.onrender.com//dropdowns', newDropdown);
                 setDropdownData(newDropdown);
                 setTypeColorMap(newDropdown.typeColors || {});
                 message.success('Value deleted');
@@ -462,7 +478,7 @@ const App = () => {
         }}
         onOk={async () => {
           try {
-            const res = await axios.get('http://localhost:3001/password');
+            const res = await axios.get('https://calendar-json-server-gof4.onrender.com//password');
             if (res.data.value === passwordInput) {
               setPasswordInputVisible(false);
               setIsPasswordVerified(true);
