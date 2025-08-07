@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Calendar, Modal, Form, Select, DatePicker, Button, Spin, message, Popconfirm, Input
+  Calendar, Modal, Form, Select, DatePicker, Button, Spin, message, Popconfirm, Input, Tag
 } from 'antd';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
@@ -152,8 +152,8 @@ const App = () => {
               okText="Delete"
               cancelText="Update"
             >
-              <li style={{ cursor: 'pointer', color }}>
-                <strong>{item.name}</strong> - {item.type}
+              <li style={{ cursor: 'pointer' }}>
+                <Tag color={color} style={{ marginLeft: 4, marginTop: 4 }}>{item.name} {''} {item.type}</Tag>
               </li>
             </Popconfirm>
           );
