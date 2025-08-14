@@ -3,11 +3,16 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { ConfigProvider, theme } from 'antd';
+import enGB from 'antd/es/locale/en_GB';
+import 'antd/dist/reset.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+      <ConfigProvider locale={enGB} theme={{ algorithm: theme.defaultAlgorithm, }}>
+        <App />
+      </ConfigProvider>
   </React.StrictMode>
 );
 
