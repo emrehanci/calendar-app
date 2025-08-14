@@ -17,7 +17,7 @@ const { RangePicker } = DatePicker;
 
 const RemoteAPI = 'https://calendar-json-server-gof4.onrender.com/';
 const LocalAPI = 'http://localhost:3001/';
-const APIURL = LocalAPI;
+const APIURL = RemoteAPI;
 
 dayjs.extend(isBetween);
 dayjs.extend(isSameOrAfter);
