@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, Drawer, Form, Select, DatePicker, Button, Spin, message, Popconfirm, Input, Tag, List, Space, Divider, Empty, Modal, Dropdown, Menu, Radio, Popover, Collapse, InputNumber, Tabs } from 'antd';
-import { LockOutlined, UnlockOutlined, LeftOutlined, RightOutlined, FilterOutlined, CalendarOutlined, AreaChartOutlined, PlusOutlined, SunOutlined, DeleteOutlined, EditOutlined, SaveOutlined, CloseOutlined, BgColorsOutlined, InboxOutlined } from '@ant-design/icons';
+import { Calendar, Drawer, Form, Select, DatePicker, Button, Spin, message, Popconfirm, Input, Tag, List, Space, Divider, Empty, Modal, Dropdown, Menu, Radio, Popover, Collapse, Tabs } from 'antd';
+import { LockOutlined, UnlockOutlined, LeftOutlined, RightOutlined, FilterOutlined, CalendarOutlined, AreaChartOutlined, PlusOutlined, SunOutlined, DeleteOutlined, EditOutlined, SaveOutlined, CloseOutlined, InboxOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
+import * as XLSX from 'xlsx';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import Holidays from 'date-holidays';
@@ -36,7 +37,6 @@ const App = () => {
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [selectedPersonId, setSelectedPersonId] = useState(null);
   const [typeColorMap, setTypeColorMap] = useState({});
-  const [deleteTarget, setDeleteTarget] = useState({ key: '', value: '' });
   const [statsModalVisible, setStatsModalVisible] = useState(false);
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
   const [passwordInputVisible, setPasswordInputVisible] = useState(false);
@@ -144,14 +144,73 @@ const App = () => {
     const { data } = await axios.post(APIURL + 'centeralEvents', payload);
     return data;
   };
+
   const updateCentral = async (id, payload) => {
     const { data } = await axios.put(APIURL + `centeralEvents/${id}`, payload);
     return data;
   };
+
   const deleteCentral = async (id) => {
     await axios.delete(APIURL + `centeralEvents/${id}`);
   };
 
+  const exportToExcel = () => {
+    const eventsRows = [['Name','Type','Team','Domain','Location','Start Date','End Date']];
+    events.forEach(ev => {
+      const p = people.find(x => x.id === ev.user_id);
+      if (!p) return;
+      eventsRows.push([
+        p.name,
+        ev.type,
+        p.team,
+        p.domain,
+        p.location,
+        ev.start,
+        ev.end
+      ]);
+    });
+  
+    const centralRows = [['Name','Start Date','End Date']];
+    centralEvents.forEach(c => {
+      centralRows.push([c.name, c.start, c.end]);
+    });
+  
+    const holidaysRows = [['Name','Type','Location','Start Date','End Date']];
+    holidays.forEach(h => {
+      holidaysRows.push([h.name, 'Public', h.region || '', h.start, h.end]);
+    });
+  
+    const peopleRows = [['Name','Team','Domain','Location']];
+    people.forEach(p => {
+      peopleRows.push([p.name, p.team, p.domain, p.location]);
+    });
+  
+    const dropdownRows = [['Dropdown Type','Name']];
+    const pushDropdown = (label, arr=[]) => {
+      arr.forEach(v => dropdownRows.push([label, v]));
+    };
+    pushDropdown('Type', dropdownData?.types);
+    pushDropdown('Team', dropdownData?.teams);
+    pushDropdown('Domain', dropdownData?.domains);
+    pushDropdown('Location', dropdownData?.locations);
+  
+    const wb = XLSX.utils.book_new();
+    const wsEvents   = XLSX.utils.aoa_to_sheet(eventsRows);
+    const wsCentral  = XLSX.utils.aoa_to_sheet(centralRows);
+    const wsHoliday  = XLSX.utils.aoa_to_sheet(holidaysRows);
+    const wsPeople   = XLSX.utils.aoa_to_sheet(peopleRows);
+    const wsDropdown = XLSX.utils.aoa_to_sheet(dropdownRows);
+  
+    XLSX.utils.book_append_sheet(wb, wsEvents,   'Events');
+    XLSX.utils.book_append_sheet(wb, wsCentral,  'Central Events');
+    XLSX.utils.book_append_sheet(wb, wsHoliday,  'Public Holidays');
+    XLSX.utils.book_append_sheet(wb, wsPeople,   'People');
+    XLSX.utils.book_append_sheet(wb, wsDropdown, 'Dropdowns');
+  
+    const filename = `calendar_export_${dayjs().format('YYYYMMDD_HHmm')}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  };
+  
   const parseEventsPaste = (text, people, validTypes = []) => {
     const lines = String(text || '').trim().split(/\r?\n/).filter(Boolean);
     const preview = [];
@@ -655,6 +714,11 @@ const App = () => {
             setBulkEventsErrors([]);
             setBulkEventsOpen(true);
           },
+        },
+        {
+          key: 'excel-export',
+          label: 'Export to Excel',
+          onClick: () => exportToExcel(),
         }
       ]}
     />
