@@ -52,6 +52,13 @@ const App = () => {
     location: null,
     dateRange: null
   });
+  const [availableOptions, setAvailableOptions] = useState({
+    person: [],
+    type: [],
+    team: [],
+    domain: [],
+    location: []
+  });
   const [centralModalVisible, setCentralModalVisible] = useState(false);
   const [centralForm] = Form.useForm();
   const [centralEvents, setCentralEvents] = useState([]);
@@ -110,6 +117,12 @@ const App = () => {
     axios.get(APIURL + 'centeralEvents').then(res => setCentralEvents(res.data || []));
   }, []);
 
+  useEffect(() => {
+    if (events.length && people.length) {
+      updateAvailableOptions(events, filters);
+    }
+  }, [events, people]);
+
   const fetchEvents = async () => {
     const res = await axios.get(APIURL + 'events');
     setEvents(res.data);
@@ -154,6 +167,44 @@ const App = () => {
     await axios.delete(APIURL + `centeralEvents/${id}`);
   };
 
+  const updateAvailableOptions = (allEvents, f) => {
+    const narrowed = allEvents.filter(ev => {
+      const p = people.find(x => x.id === ev.user_id);
+      if (!p) return false;
+      return (
+        (!f.person  || f.person.length  === 0 || f.person.includes(ev.user_id)) &&
+        (!f.type    || f.type.length    === 0 || f.type.includes(ev.type)) &&
+        (!f.team    || f.team.length    === 0 || f.team.includes(p.team)) &&
+        (!f.domain  || f.domain.length  === 0 || f.domain.includes(p.domain)) &&
+        (!f.location|| f.location.length=== 0 || f.location.includes(p.location)) &&
+        (!f.dateRange || (
+          dayjs(ev.start).isSameOrBefore(f.dateRange[1], 'day') &&
+          dayjs(ev.end).isSameOrAfter(f.dateRange[0], 'day')
+        ))
+      );
+    });
+  
+    const person  = Array.from(new Set(narrowed.map(ev => ev.user_id)));
+    const type    = Array.from(new Set(narrowed.map(ev => ev.type)));
+  
+    const team    = Array.from(new Set(narrowed.map(ev => {
+      const p = people.find(x => x.id === ev.user_id);
+      return p?.team;
+    }).filter(Boolean)));
+  
+    const domain  = Array.from(new Set(narrowed.map(ev => {
+      const p = people.find(x => x.id === ev.user_id);
+      return p?.domain;
+    }).filter(Boolean)));
+  
+    const location= Array.from(new Set(narrowed.map(ev => {
+      const p = people.find(x => x.id === ev.user_id);
+      return p?.location;
+    }).filter(Boolean)));
+  
+    setAvailableOptions({ person, type, team, domain, location });
+  };
+  
   const exportDB = async () => {
     try {
       const res = await axios.get(`${APIURL}db`);
@@ -544,6 +595,7 @@ const App = () => {
     const updated = { ...filters, [key]: value };
     setFilters(updated);
     applyFilters(events, updated);
+    updateAvailableOptions(events, updated);
   };
 
   const inMulti = (arr, val) => !arr || arr.length === 0 || arr.includes(val);
@@ -739,7 +791,7 @@ const App = () => {
         },
         {
           key: 'db-export',
-          label: 'Export DB (JSON)',
+          label: 'Export DB as JSON',
           onClick: () => exportDB(),
         }
       ]}
@@ -750,19 +802,19 @@ const App = () => {
     const content = (
       <div style={{ width: 500 }}>
         <Select mode="multiple" placeholder="Person" value={filters.person || []} allowClear style={{ width: '100%', marginBottom: 8 }} onChange={(val) => handleFilterChange('person', val)}>
-          {people.map(val => (<Option key={val.id} value={val.id}>{val.name}</Option>))}
+          {people.filter(p => availableOptions.person.includes(p.id)).map(val => (<Option key={val.id} value={val.id}>{val.name}</Option>))}
         </Select>
         <Select mode="multiple" placeholder="Type" value={filters.type || []} allowClear style={{ width: '100%', marginBottom: 8 }}onChange={(val) => handleFilterChange('type', val)}>
-          {dropdownData.types.map(val => (<Option key={val} value={val}>{val}</Option>))}
+          {availableOptions.type.map(val => (<Option key={val} value={val}>{val}</Option>))}
         </Select>
         <Select mode="multiple" placeholder="Team" value={filters.team || []} allowClear style={{ width: '100%', marginBottom: 8 }} onChange={(val) => handleFilterChange('team', val)}>
-          {dropdownData.teams.map(val => (<Option key={val} value={val}>{val}</Option>))}
+          {availableOptions.team.map(val => (<Option key={val} value={val}>{val}</Option>))}
         </Select>
         <Select mode="multiple" placeholder="Domain" value={filters.domain || []} allowClear style={{ width: '100%', marginBottom: 8 }} onChange={(val) => handleFilterChange('domain', val)}>
-          {dropdownData.domains.map(val => (<Option key={val} value={val}>{val}</Option>))}
+          {availableOptions.domain.map(val => (<Option key={val} value={val}>{val}</Option>))}
         </Select>
         <Select mode="multiple" placeholder="Location" value={filters.location || []} allowClear style={{ width: '100%', marginBottom: 8 }} onChange={(val) => handleFilterChange('location', val)}>
-          {dropdownData.locations.map(val => (<Option key={val} value={val}>{val}</Option>))}
+          {availableOptions.location.map(val => (<Option key={val} value={val}>{val}</Option>))}
         </Select>
         <RangePicker style={{ width: '100%' }} value={filters.dateRange || null} onChange={(range) => handleFilterChange('dateRange', range)} />
       </div>
@@ -1437,13 +1489,10 @@ const App = () => {
             return;
           }
           try {
-            // json-server has no batch: POST sequentially
             for (const ev of bulkEventsPreview) {
-              // clean preview-only field
               const { __displayName, ...toSave } = ev;
               await createEvent(toSave);
             }
-            // update client state
             setEvents(prev => {
               const merged = [...prev, ...bulkEventsPreview.map(({__displayName, ...r}) => r)];
               applyFilters(merged, filters);
@@ -1478,7 +1527,6 @@ const App = () => {
               dropdownData?.types || []
             );
 
-            // remove duplicates against existing events
             const existKeys = new Set(
               events.map(ev => `${ev.user_id}__${ev.type}__${ev.start}__${ev.end}`)
             );
