@@ -1,17 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, Drawer, Form, Select, DatePicker, Button, Spin, message, Popconfirm, Input, Tag, List, Space, Divider, Empty, Modal, Dropdown, Menu, ConfigProvider } from 'antd';
-import { LockOutlined, UnlockOutlined } from '@ant-design/icons';
+import { Calendar, Drawer, Form, Select, DatePicker, Button, Spin, message, Popconfirm, Input, Tag, List, Space, Divider, Empty, Modal, Dropdown, Menu, Radio, Popover, Collapse, InputNumber, Tabs } from 'antd';
+import { LockOutlined, UnlockOutlined, LeftOutlined, RightOutlined, FilterOutlined, CalendarOutlined, AreaChartOutlined, PlusOutlined, SunOutlined, DeleteOutlined, EditOutlined, SaveOutlined, CloseOutlined, BgColorsOutlined, InboxOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import Holidays from 'date-holidays';
-import 'dayjs/locale/en-gb';
-import locale from 'antd/es/locale/en_GB';
-import weekday from 'dayjs/plugin/weekday';
-import localeData from 'dayjs/plugin/localeData';
 const { Option } = Select;
 const { RangePicker } = DatePicker;
 
@@ -22,9 +19,7 @@ const APIURL = RemoteAPI;
 dayjs.extend(isBetween);
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
-dayjs.extend(weekday);
-dayjs.extend(localeData);
-dayjs.locale('en-gb');
+dayjs.extend(customParseFormat);
 
 const App = () => {
   const [modalVisible, setModalVisible] = useState(false);
@@ -63,6 +58,25 @@ const App = () => {
   const [centralEditMode, setCentralEditMode] = useState(false);
   const [selectedCentralId, setSelectedCentralId] = useState(null);
   const [holidays, setHolidays] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [allEventsOpen, setAllEventsOpen] = useState(false);
+  const [eventsSearch, setEventsSearch] = useState('');
+  const [bulkCentralOpen, setBulkCentralOpen] = useState(false);
+  const [bulkCentralText, setBulkCentralText] = useState('');
+  const [bulkCentralPreview, setBulkCentralPreview] = useState([]);
+  const [bulkCentralErrors, setBulkCentralErrors] = useState([]);
+
+  const countTypeUsage = (type) => events.filter(e => e.type === type).length;
+  const countTeamUsage = (team) => people.filter(p => p.team === team).length;
+  const countDomainUsage = (domain) => people.filter(p => p.domain === domain).length;
+  const countLocationUsage = (location) => people.filter(p => p.location === location).length;
+
+  const ensureUniqueSorted = (arr) => Array.from(new Set(arr)).sort((a,b) => String(a).localeCompare(String(b)));
+
+
+  const handleOpenChange = (newOpen) => {
+    setOpen(newOpen);
+  };
 
   const CENTRAL_COLOR = 'geekblue';
   const watchedStart = Form.useWatch('start', form);
@@ -132,6 +146,76 @@ const App = () => {
   };
   const deleteCentral = async (id) => {
     await axios.delete(APIURL + `centeralEvents/${id}`);
+  };
+
+  const parseDateLoose = (raw) => {
+    const s = String(raw || '').trim();
+    if (!s) return null;
+    const tryFormats = [
+      'YYYY-MM-DD', 'DD.MM.YYYY', 'MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY/MM/DD',
+      'D.M.YYYY', 'D/M/YYYY', 'YYYY.M.D', 'YYYY/M/D'
+    ];
+    for (const fmt of tryFormats) {
+      const d = dayjs(s, fmt, true);
+      if (d.isValid()) return d;
+    }
+    const dIso = dayjs(s);
+    return dIso.isValid() ? dIso : null;
+  };
+
+  const parseCentralPaste = (text) => {
+    const lines = String(text || '').trim().split(/\r?\n/).filter(Boolean);
+    const preview = [];
+    const errors = [];
+
+    if (!lines.length) return { preview, errors };
+
+    const looksLikeHeader = /name/i.test(lines[0]) && (/start/i.test(lines[0]) || /from/i.test(lines[0]));
+    const startIdx = looksLikeHeader ? 1 : 0;
+
+    for (let i = startIdx; i < lines.length; i++) {
+      const row = lines[i].split('\t');
+      const [nameRaw, startRaw, endRaw] = row.map(c => (c ?? '').trim());
+      if (!nameRaw && !startRaw && !endRaw) continue;
+
+      if (!nameRaw || !startRaw) {
+        errors.push({ line: i + 1, reason: 'Name or Start date is empty.' });
+        continue;
+      }
+
+      const start = parseDateLoose(startRaw);
+      const end   = parseDateLoose(endRaw || startRaw);
+      if (!start || !end) {
+        errors.push({ line: i + 1, reason: 'Dates are invalid.' });
+        continue;
+      }
+
+      const s = start.startOf('day');
+      const e = end.startOf('day');
+      if (e.isBefore(s, 'day')) {
+        errors.push({ line: i + 1, reason: 'End date can not be earlier then start date' });
+        continue;
+      }
+
+      preview.push({
+        id: uuidv4(),
+        name: nameRaw,
+        start: s.format('YYYY-MM-DD'),
+        end:   e.format('YYYY-MM-DD'),
+      });
+    }
+
+    const uniq = [];
+    const seen = new Set();
+    for (const p of preview) {
+      const key = `${p.name}__${p.start}__${p.end}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniq.push(p);
+      }
+    }
+
+    return { preview: uniq, errors };
   };
 
   const hashString = (str) => {
@@ -387,7 +471,19 @@ const App = () => {
         })}
       </ul>
     );
-  };  
+  };
+
+  const allEventsData = React.useMemo(() => {
+    const q = (eventsSearch || '').toLowerCase();
+    return events
+      .slice()
+      .sort((a, b) => dayjs(a.start).diff(dayjs(b.start)))
+      .filter(ev => {
+        const person = nameById(ev.user_id);
+        const haystack = `${person} ${ev.type} ${ev.start} ${ev.end}`.toLowerCase();
+        return !q || haystack.includes(q);
+      });
+  }, [events, eventsSearch, people]);
 
   const isWeekend = (d) => d.day() === 0 || d.day() === 6;
 
@@ -476,6 +572,35 @@ const App = () => {
     />
   );
 
+  const FiltersPopover = () => {
+    const content = (
+      <div style={{ width: 500 }}>
+        <Select mode="multiple" placeholder="Person" value={filters.person || []} allowClear style={{ width: '100%', marginBottom: 8 }} onChange={(val) => handleFilterChange('person', val)}>
+          {people.map(val => (<Option key={val.id} value={val.id}>{val.name}</Option>))}
+        </Select>
+        <Select mode="multiple" placeholder="Type" value={filters.type || []} allowClear style={{ width: '100%', marginBottom: 8 }}onChange={(val) => handleFilterChange('type', val)}>
+          {dropdownData.types.map(val => (<Option key={val} value={val}>{val}</Option>))}
+        </Select>
+        <Select mode="multiple" placeholder="Team" value={filters.team || []} allowClear style={{ width: '100%', marginBottom: 8 }} onChange={(val) => handleFilterChange('team', val)}>
+          {dropdownData.teams.map(val => (<Option key={val} value={val}>{val}</Option>))}
+        </Select>
+        <Select mode="multiple" placeholder="Domain" value={filters.domain || []} allowClear style={{ width: '100%', marginBottom: 8 }} onChange={(val) => handleFilterChange('domain', val)}>
+          {dropdownData.domains.map(val => (<Option key={val} value={val}>{val}</Option>))}
+        </Select>
+        <Select mode="multiple" placeholder="Location" value={filters.location || []} allowClear style={{ width: '100%', marginBottom: 8 }} onChange={(val) => handleFilterChange('location', val)}>
+          {dropdownData.locations.map(val => (<Option key={val} value={val}>{val}</Option>))}
+        </Select>
+        <RangePicker style={{ width: '100%' }} value={filters.dateRange || null} onChange={(range) => handleFilterChange('dateRange', range)} />
+      </div>
+    );
+  
+    return (
+      <Popover content={content} title="Filters" trigger="click" placement="bottomLeft" open={open} onOpenChange={handleOpenChange} destroyTooltipOnHide={false}>
+        <Button icon={<FilterOutlined />} iconPosition='end'>Filters</Button>
+      </Popover>
+    );
+  }
+
   if (!dropdownData) {
     return <div
       style={{
@@ -496,52 +621,75 @@ const App = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 0 }}>
-          <Select mode="multiple" placeholder="Person" allowClear style={{ width: 150 }} onChange={(val) => handleFilterChange('person', val)}>
-            {people.map(val => <Option key={val.id} value={val.id}>{val.name}</Option>)}
-          </Select>
-          <Select mode="multiple" placeholder="Type" allowClear style={{ width: 150 }} onChange={(val) => handleFilterChange('type', val)}>
-            {dropdownData.types.map(val => <Option key={val} value={val}>{val}</Option>)}
-          </Select>
-          <Select mode="multiple" placeholder="Team" allowClear style={{ width: 150 }} onChange={(val) => handleFilterChange('team', val)}>
-            {dropdownData.teams.map(val => <Option key={val} value={val}>{val}</Option>)}
-          </Select>
-          <Select mode="multiple" placeholder="Domain" allowClear style={{ width: 150 }} onChange={(val) => handleFilterChange('domain', val)}>
-            {dropdownData.domains.map(val => <Option key={val} value={val}>{val}</Option>)}
-          </Select>
-          <Select mode="multiple" placeholder="Location" allowClear style={{ width: 150 }} onChange={(val) => handleFilterChange('location', val)}>
-            {dropdownData.locations.map(val => <Option key={val} value={val}>{val}</Option>)}
-          </Select>
-          <RangePicker onChange={(range) => handleFilterChange('dateRange', range)} />
-        </div>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 0 }}>
-          <Button onClick={calculateStatistics}>Show Statistics</Button>
-          {
-            isPasswordVerified ? 
-            (
-              <Dropdown overlay={adminMenu} placement="bottomRight">
-                <Button type="primary">
-                  Admin Actions <UnlockOutlined />
-                </Button>
-              </Dropdown>
-            ) : (
-              <Button type="primary" onClick={() => { setPasswordInputVisible(true); }} icon={<LockOutlined />}>
-                Admin Login
-              </Button>
-            )
-          }
-          <Button type="primary" onClick={() => setModalVisible(true)}>Add New Entry</Button>
-        </div>
-      </div>
+      <Calendar cellRender={dateCellRender} showWeek
+      headerRender={({ value, type, onChange, onTypeChange }) => {
+        const year = value.year();
+        const month = value.month();
 
-      <ConfigProvider locale={locale}>
-        <Calendar cellRender={dateCellRender} />
-      </ConfigProvider>
+        const yearOptions = Array.from({ length: 20 }, (_, i) => {
+          const label = year - 10 + i;
+          return { label, value: label };
+        });
+
+        const monthOptions = value
+          .localeData()
+          .monthsShort()
+          .map((label, index) => ({
+            label,
+            value: index,
+          }));
+
+        const goPrev = () => {
+          const unit = type === 'year' ? 'year' : 'month';
+          onChange(value.clone().subtract(1, unit));
+        };
+    
+        const goNext = () => {
+          const unit = type === 'year' ? 'year' : 'month';
+          onChange(value.clone().add(1, unit));
+        };
+    
+        const goToday = () => {
+          onChange(dayjs());
+        };
+
+        return (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 0 }}>
+              <FiltersPopover />
+            </div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 0 }}>
+              <Button onClick={() => setAllEventsOpen(true)} icon={<SunOutlined />} iconPosition='end'>All Events</Button>
+              <Button onClick={calculateStatistics} icon={<AreaChartOutlined />} iconPosition='end'>Show Statistics</Button>
+              {
+                isPasswordVerified ? 
+                (
+                  <Dropdown overlay={adminMenu} placement="bottomRight">
+                    <Button type="primary" icon={<UnlockOutlined />} iconPosition='end'>Admin Actions</Button>
+                  </Dropdown>
+                ) : (
+                  <Button type="primary" onClick={() => { setPasswordInputVisible(true); }} icon={<LockOutlined />} iconPosition='end'>Admin Login</Button>
+                )
+              }
+              <Button type="primary" onClick={() => setModalVisible(true)} icon={<PlusOutlined />} iconPosition='end'>Add New Event</Button>
+              <Button type="default" onClick={goPrev} icon={<LeftOutlined />} />
+              <Radio.Group onChange={(e) => onTypeChange(e.target.value)} value={type}>
+                <Radio.Button value="month">Month</Radio.Button>
+                <Radio.Button value="year">Year</Radio.Button>
+              </Radio.Group>
+              <Select popupMatchSelectWidth={false} value={year} options={yearOptions} onChange={(newYear) => { const now = value.clone().year(newYear); onChange(now); }} />
+              <Select popupMatchSelectWidth={false} value={month} options={monthOptions} onChange={(newMonth) => { const now = value.clone().month(newMonth); onChange(now); }}/>
+              <Button type="default" onClick={goNext} icon={<RightOutlined />} />
+              <Button onClick={goToday} icon={<CalendarOutlined />} iconPosition='end'>Today</Button>
+            </div>
+          </div>
+        );
+      }}
+      />
 
       <Drawer
         width={800}
-        title={editMode ? "Update Event" : "Add New Holiday"}
+        title={editMode ? "Update Event" : "Add New Event"}
         open={modalVisible}
         onClose={() => {
           setModalVisible(false);
@@ -647,118 +795,94 @@ const App = () => {
         title="Manage Dropdowns"
         open={dropdownModalVisible}
         onClose={() => setDropdownModalVisible(false)}
-        extra={
-          <Space>
-            <Button onClick={() => setDropdownModalVisible(false)}>Cancel</Button>
-            <Button onClick={() => dropdownForm.submit()} type="primary">
-              Add
-            </Button>
-          </Space>
-        }
+        footer={null}
       >
-        <hr />
-        <h4>Add Dropdown Value</h4>
-        <Form
-          form={dropdownForm}
-          layout="vertical"
-          onFinish={async ({ key, value, color }) => {
-            const newDropdown = { ...dropdownData };
-            if (!newDropdown[key]) {
-              message.error('Invalid dropdown key.');
-              return;
-            }
-            if (newDropdown[key].includes(value)) {
-              message.warning('This value already exists.');
-              return;
-            }
-            newDropdown[key] = [...newDropdown[key], value];
-            if (key === "types" && color) {
-              newDropdown.typeColors = {
-                ...newDropdown.typeColors,
-                [value]: color
-              };
-            }
-            try {
-              await axios.patch( APIURL + 'dropdowns', newDropdown);
-              setDropdownData(newDropdown);
-              setTypeColorMap(newDropdown.typeColors || {});
-              message.success('Dropdown updated');
-              dropdownForm.resetFields();
-              setDropdownModalVisible(false);
-            } catch (err) {
-              message.error('Update failed');
-            }
-          }}
-        >
-          <Form.Item name="key" label="Dropdown Key" rules={[{ required: true }]}>
-            <Select placeholder="Select dropdown to update">
-              <Option value="types">Types</Option>
-              <Option value="teams">Teams</Option>
-              <Option value="domains">Domains</Option>
-              <Option value="locations">Locations</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item name="value" label="New Value" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="color" label="Color (only for types)">
-            <Input type="color" />
-          </Form.Item>
-        </Form>
-
-        <hr />
-        <h4>Delete Dropdown Value</h4>
-        <Form layout="inline">
-          <Form.Item label="Dropdown" required>
-            <Select
-              value={deleteTarget.key}
-              onChange={key => setDeleteTarget(prev => ({ ...prev, key, value: '' }))}
-              style={{ width: 150 }}
-            >
-              <Option value="types">Types</Option>
-              <Option value="teams">Teams</Option>
-              <Option value="domains">Domains</Option>
-              <Option value="locations">Locations</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item label="Value" required>
-            <Select
-              value={deleteTarget.value}
-              onChange={val => setDeleteTarget(prev => ({ ...prev, value: val }))}
-              disabled={!deleteTarget.key}
-              style={{ width: 180 }}
-            >
-              {dropdownData?.[deleteTarget.key]?.map(val => (
-                <Option key={val} value={val}>{val}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Button
-            danger
-            type="primary"
-            disabled={!deleteTarget.key || !deleteTarget.value}
-            onClick={async () => {
-              const { key, value } = deleteTarget;
-              const newDropdown = { ...dropdownData };
-              newDropdown[key] = newDropdown[key].filter(v => v !== value);
-              if (key === 'types' && newDropdown.typeColors) {
-                delete newDropdown.typeColors[value];
-              }
-              try {
-                await axios.patch(APIURL + 'dropdowns', newDropdown);
-                setDropdownData(newDropdown);
-                setTypeColorMap(newDropdown.typeColors || {});
-                message.success('Value deleted');
-                setDeleteTarget({ key: '', value: '' });
-              } catch (err) {
-                message.error('Failed to delete');
-              }
-            }}
-          >
-            Delete
-          </Button>
-        </Form>
+        <Tabs
+          defaultActiveKey="types"
+          items={[
+            {
+              key: 'types',
+              label: 'Types',
+              children: (
+                <DropdownManager
+                  kind="types"
+                  values={dropdownData.types}
+                  colorMap={dropdownData.typeColors || {}}
+                  onPatch={async (nextValues, nextColorMap) => {
+                    const payload = {
+                      ...dropdownData,
+                      types: ensureUniqueSorted(nextValues),
+                      typeColors: nextColorMap,
+                    };
+                    await axios.patch(APIURL + 'dropdowns', payload);
+                    setDropdownData(payload);
+                    setTypeColorMap(payload.typeColors || {});
+                    message.success('Types updated');
+                  }}
+                  ensureUniqueSorted={ensureUniqueSorted}
+                  usageFn={countTypeUsage}
+                  supportsColor
+                />
+              ),
+            },
+            {
+              key: 'teams',
+              label: 'Teams',
+              children: (
+                <DropdownManager
+                  kind="teams"
+                  values={dropdownData.teams}
+                  onPatch={async (nextValues) => {
+                    const payload = { ...dropdownData, teams: ensureUniqueSorted(nextValues) };
+                    await axios.patch(APIURL + 'dropdowns', payload);
+                    setDropdownData(payload);
+                    message.success('Teams updated');
+                  }}
+                  ensureUniqueSorted={ensureUniqueSorted}
+                  usageFn={countTeamUsage}
+                />
+              ),
+            },
+            {
+              key: 'domains',
+              label: 'Domains',
+              children: (
+                <DropdownManager
+                  kind="domains"
+                  values={dropdownData.domains}
+                  onPatch={async (nextValues) => {
+                    const payload = { ...dropdownData, domains: ensureUniqueSorted(nextValues) };
+                    await axios.patch(APIURL + 'dropdowns', payload);
+                    setDropdownData(payload);
+                    message.success('Domains updated');
+                  }}
+                  ensureUniqueSorted={ensureUniqueSorted}
+                  usageFn={countDomainUsage}
+                />
+              ),
+            },
+            {
+              key: 'locations',
+              label: 'Locations',
+              children: (
+                <DropdownManager
+                  kind="locations"
+                  values={dropdownData.locations}
+                  onPatch={async (nextValues) => {
+                    const payload = { ...dropdownData, locations: ensureUniqueSorted(nextValues) };
+                    await axios.patch(APIURL + 'dropdowns', payload);
+                    setDropdownData(payload);
+                    message.success('Locations updated');
+                  }}
+                  ensureUniqueSorted={ensureUniqueSorted}
+                  usageFn={countLocationUsage}
+                />
+              ),
+            },
+          ]}
+        />
       </Drawer>
+
       <Drawer
         title="People"
         open={peopleModalVisible}
@@ -865,6 +989,14 @@ const App = () => {
         extra={
           <Space>
             <Button onClick={() => {
+              setBulkCentralText('');
+              setBulkCentralPreview([]);
+              setBulkCentralErrors([]);
+              setBulkCentralOpen(true);
+            }}>
+              Bulk Import
+            </Button>
+            <Button onClick={() => {
               setCentralModalVisible(false);
               centralForm.resetFields();
               setCentralEditMode(false);
@@ -946,8 +1078,395 @@ const App = () => {
         />
       </Drawer>
 
+      <Drawer
+        title="All Events"
+        open={allEventsOpen}
+        onClose={() => setAllEventsOpen(false)}
+        width={800}
+      >
+        <Collapse defaultActiveKey={['user']} accordion={false} style={{ background: 'transparent' }}>
+          <Collapse.Panel header={`User Events (${allEventsData.length})`} key="user">
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <Input.Search
+                placeholder="Search by name / type / date"
+                allowClear
+                value={eventsSearch}
+                onChange={(e) => setEventsSearch(e.target.value)}
+              />
+            </div>
+            <List
+              dataSource={allEventsData}
+              pagination={{ pageSize: 10 }}
+              renderItem={(item) => (
+                <List.Item
+                  actions={[
+                    <a
+                      key="edit"
+                      onClick={() => {
+                        onUpdate(item);
+                        setAllEventsOpen(false);
+                      }}
+                    >
+                      Edit
+                    </a>,
+                    <a
+                      key="delete"
+                      onClick={() => {
+                        onDelete(item);
+                      }}
+                    >
+                      Delete
+                    </a>,
+                  ]}
+                >
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <Tag color={typeColorMap[item.type] || 'default'}>{item.type}</Tag>
+                    <strong>{nameById(item.user_id)}</strong>
+                    <span>({dayjs(item.start).format('YYYY-MM-DD')} → {dayjs(item.end).format('YYYY-MM-DD')})</span>
+                  </div>
+                </List.Item>
+              )}
+            />
+          </Collapse.Panel>
+          <Collapse.Panel header={`Central Events (${centralEvents.length})`} key="central">
+            <List
+              pagination={{ pageSize: 10 }}
+              dataSource={centralEvents}
+              renderItem={(item) => (
+                <List.Item>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <Tag color="geekblue">Central</Tag>
+                    <strong>{item.name}</strong>
+                    <span>({dayjs(item.start).format('YYYY-MM-DD')} → {dayjs(item.end).format('YYYY-MM-DD')})</span>
+                  </div>
+                </List.Item>
+              )}
+            />
+          </Collapse.Panel>
+          <Collapse.Panel header={`Holidays (${holidays.length})`} key="holidays">
+            <List
+              pagination={{ pageSize: 10 }}
+              dataSource={holidays}
+              renderItem={(item) => (
+                <List.Item>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <Tag color={getRegionColor(item.region)}>{item.region}</Tag>
+                    <strong>{item.name}</strong>
+                    <span>({dayjs(item.start).format('YYYY-MM-DD')})</span>
+                  </div>
+                </List.Item>
+              )}
+            />
+          </Collapse.Panel>
+        </Collapse>
+      </Drawer>
+
+      <Modal
+        width={820}
+        title="Bulk Import Central Events"
+        open={bulkCentralOpen}
+        onCancel={() => setBulkCentralOpen(false)}
+        okText="Import"
+        onOk={async () => {
+          if (!bulkCentralPreview.length) {
+            message.warning('Import edilecek geçerli satır yok.');
+            return;
+          }
+          try {
+            for (const item of bulkCentralPreview) {
+              await createCentral(item);
+            }
+            setCentralEvents(prev => [...prev, ...bulkCentralPreview].sort((a,b) => dayjs(a.start).diff(dayjs(b.start))));
+            message.success(`${bulkCentralPreview.length} central event eklendi`);
+            setBulkCentralOpen(false);
+            setBulkCentralText('');
+            setBulkCentralPreview([]);
+            setBulkCentralErrors([]);
+          } catch (e) {
+            message.error('Import sırasında hata oluştu');
+          }
+        }}
+      >
+        <p style={{ marginBottom: 8 }}>
+        Select the <b>Name | Start | End</b> columns in Excel and <b>Copy</b> them, then <b>Paste</b> below.
+<br/>Date formats such as <code>YYYY-MM-DD</code>, <code>DD.MM.YYYY</code>, <code>MM/DD/YYYY</code>, etc. are accepted.
+<br/>If the first row is a <i>header</i>, it will be skipped automatically.
+        </p>
+        <Input.TextArea
+          rows={8}
+          value={bulkCentralText}
+          onChange={(e) => {
+            const val = e.target.value;
+            setBulkCentralText(val);
+            const { preview, errors } = parseCentralPaste(val);
+            const existKeys = new Set(centralEvents.map(c => `${c.name}__${c.start}__${c.end}`));
+            const dedupPreview = preview.filter(p => !existKeys.has(`${p.name}__${p.start}__${p.end}`));
+            setBulkCentralPreview(dedupPreview);
+            setBulkCentralErrors(errors);
+          }}
+          placeholder={`Example with header (optional):
+      Name\tStart\tEnd
+      Release\t2025-08-07\t2025-08-07
+      2025 - Q2 Planning\t16.08.2025\t21.08.2025`}
+        />
+
+        <Divider />
+
+        <div style={{ display:'flex', gap:16 }}>
+          <div style={{ flex:1 }}>
+            <h4 style={{ marginBottom: 8 }}>Preview ({bulkCentralPreview.length})</h4>
+            <List
+              size="small"
+              bordered
+              dataSource={bulkCentralPreview}
+              renderItem={(it) => (
+                <List.Item>
+                  <Space wrap>
+                    <Tag color="geekblue">Central</Tag>
+                    <strong>{it.name}</strong>
+                    <span>({it.start} → {it.end})</span>
+                  </Space>
+                </List.Item>
+              )}
+              style={{ maxHeight: 240, overflow: 'auto' }}
+            />
+          </div>
+          <div style={{ flex:1 }}>
+            <h4 style={{ marginBottom: 8 }}>Errors ({bulkCentralErrors.length})</h4>
+            <List
+              size="small"
+              bordered
+              dataSource={bulkCentralErrors}
+              renderItem={(er) => (
+                <List.Item>
+                  <Space>
+                    <Tag color="red">Line {er.line}</Tag>
+                    <span>{er.reason}</span>
+                  </Space>
+                </List.Item>
+              )}
+              style={{ maxHeight: 240, overflow: 'auto' }}
+            />
+          </div>
+        </div>
+      </Modal>
+
     </div>
   );
 };
 
 export default App;
+
+const DropdownManager = ({
+  kind,                   
+  values = [],
+  colorMap = {},
+  usageFn = () => 0,
+  onPatch,               
+  supportsColor = false,
+  ensureUniqueSorted
+}) => {
+  const [list, setList] = useState(values);
+  const [colors, setColors] = useState(colorMap);
+  const [adding, setAdding] = useState('');
+  const [editingKey, setEditingKey] = useState(null);
+  const [editingValue, setEditingValue] = useState('');
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+
+  useEffect(() => { setList(values); }, [values]);
+  useEffect(() => { setColors(colorMap); }, [colorMap]);
+
+  const saveAll = async () => {
+    const cleaned = ensureUniqueSorted(list.map(v => v.trim()).filter(Boolean));
+    let nextColors = colors;
+    if (supportsColor) {
+      nextColors = Object.fromEntries(
+        Object.entries(colors).filter(([k]) => cleaned.includes(k))
+      );
+    }
+    await onPatch(cleaned, nextColors);
+  };
+
+  const addOne = async () => {
+    const v = adding.trim();
+    if (!v) return;
+    if (list.includes(v)) {
+      message.warning('Already exists');
+      return;
+    }
+    const next = ensureUniqueSorted([...list, v]);
+    setList(next);
+    setAdding('');
+    await onPatch(next, colors);
+  };
+
+  const removeOne = async (v) => {
+    const inUse = usageFn(v) > 0;
+    if (inUse) {
+      Modal.confirm({
+        title: 'Value in use',
+        content: `“${v}” is referenced. Are you sure you want to remove it?`,
+        okType: 'danger',
+        onOk: async () => {
+          const next = list.filter(x => x !== v);
+          const nextColors = supportsColor ? Object.fromEntries(Object.entries(colors).filter(([k]) => k !== v)) : colors;
+          setList(next);
+          setColors(nextColors);
+          await onPatch(next, nextColors);
+        }
+      });
+      return;
+    }
+    const next = list.filter(x => x !== v);
+    const nextColors = supportsColor ? Object.fromEntries(Object.entries(colors).filter(([k]) => k !== v)) : colors;
+    setList(next);
+    setColors(nextColors);
+    await onPatch(next, nextColors);
+  };
+
+  const startEdit = (v) => {
+    setEditingKey(v);
+    setEditingValue(v);
+  };
+
+  const cancelEdit = () => {
+    setEditingKey(null);
+    setEditingValue('');
+  };
+
+  const saveEdit = async (oldVal) => {
+    const newVal = editingValue.trim();
+    if (!newVal) {
+      message.warning('Value cannot be empty');
+      return;
+    }
+    if (newVal !== oldVal && list.includes(newVal)) {
+      message.warning('Value already exists');
+      return;
+    }
+    const next = list.map(x => (x === oldVal ? newVal : x));
+    let nextColors = colors;
+    if (supportsColor && colors[oldVal]) {
+      nextColors = { ...colors };
+      nextColors[newVal] = nextColors[oldVal];
+      delete nextColors[oldVal];
+    }
+    setList(next);
+    setColors(nextColors);
+    setEditingKey(null);
+    setEditingValue('');
+    await onPatch(next, nextColors);
+  };
+
+  const setColor = async (v, color) => {
+    if (!supportsColor) return;
+    const nextColors = { ...colors, [v]: color };
+    setColors(nextColors);
+    await onPatch(list, nextColors);
+  };
+
+  const doBulkAdd = async () => {
+    const incoming = bulkText
+      .split(/\r?\n/)
+      .map(v => v.trim())
+      .filter(Boolean);
+    const next = ensureUniqueSorted([...list, ...incoming]);
+    setList(next);
+    setBulkOpen(false);
+    setBulkText('');
+    await onPatch(next, colors);
+  };
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        <Input
+          placeholder={`Add new ${kind.slice(0, -1)}`}
+          value={adding}
+          onChange={e => setAdding(e.target.value)}
+          onPressEnter={addOne}
+          style={{ width: 300 }}
+        />
+        <Button icon={<PlusOutlined />} type="primary" onClick={addOne}>Add</Button>
+        <Button icon={<InboxOutlined />} onClick={() => setBulkOpen(true)}>Bulk Add</Button>
+        <div style={{ marginLeft: 'auto' }}>
+          <Button onClick={saveAll}>Save All</Button>
+        </div>
+      </div>
+
+      <List
+        dataSource={list}
+        bordered
+        renderItem={(v) => {
+          const usage = usageFn(v);
+          const isEditing = editingKey === v;
+          return (
+            <List.Item
+              actions={[
+                isEditing ? (
+                  <>
+                    <a onClick={() => saveEdit(v)} key="save" style={{ marginRight: 4}}><SaveOutlined /> Save</a>
+                    <a onClick={cancelEdit} key="cancel"><CloseOutlined /> Cancel</a>
+                  </>
+                ) : (
+                  <a onClick={() => startEdit(v)} key="edit"><EditOutlined /> Edit</a>
+                ),
+                <a onClick={() => removeOne(v)} key="delete" style={{ color: 'red' }}>
+                  <DeleteOutlined /> Delete{usage ? ` (${usage})` : ''}
+                </a>,
+              ]}
+            >
+              <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', width:'100%' }}>
+                {isEditing ? (
+                  <Input
+                    autoFocus
+                    value={editingValue}
+                    onChange={(e) => setEditingValue(e.target.value)}
+                    onPressEnter={() => saveEdit(v)}
+                    style={{ maxWidth: 360 }}
+                  />
+                ) : (
+                  <strong>{v}</strong>
+                )}
+
+                <span style={{ opacity: .7 }}>Used: {usage}</span>
+
+                {supportsColor && !isEditing && (
+                  <>
+                    <span style={{ opacity: .7 }}>Color:</span>
+                    <Input
+                      type="color"
+                      value={colors[v] || '#1677ff'}
+                      onChange={(e) => setColor(v, e.target.value)}
+                      style={{ width: 48, padding: 2 }}
+                    />
+                  </>
+                )}
+              </div>
+            </List.Item>
+          );
+        }}
+      />
+
+      <Modal
+        title="Bulk Add"
+        open={bulkOpen}
+        onCancel={() => setBulkOpen(false)}
+        onOk={doBulkAdd}
+        okText="Add"
+      >
+        <p>Paste one value per line:</p>
+        <Input.TextArea
+          rows={6}
+          value={bulkText}
+          onChange={(e) => setBulkText(e.target.value)}
+          placeholder="Example:
+Vacation
+Sick Leave
+Training"
+        />
+      </Modal>
+    </div>
+  );
+};
