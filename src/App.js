@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, Drawer, Form, Select, DatePicker, Button, Spin, message, Popconfirm, Input, Tag, List, Space, Divider, Empty, Modal, Dropdown, Menu, Radio, Popover, Collapse, Tabs } from 'antd';
+import { Calendar, Drawer, Form, Select, DatePicker, Button, Spin, message, Popconfirm, Input, Tag, List, Space, Divider, Empty, Modal, Cascader, Radio, Popover, Collapse, Tabs, Badge } from 'antd';
 import { LockOutlined, UnlockOutlined, LeftOutlined, RightOutlined, FilterOutlined, CalendarOutlined, AreaChartOutlined, PlusOutlined, SunOutlined, DeleteOutlined, EditOutlined, SaveOutlined, CloseOutlined, InboxOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
@@ -84,6 +84,15 @@ const App = () => {
 
   const ensureUniqueSorted = (arr) => Array.from(new Set(arr)).sort((a,b) => String(a).localeCompare(String(b)));
 
+  const totalSelected = Object.entries(filters).reduce((acc, [key, value]) => {
+    if (Array.isArray(value)) {
+      return acc + value.length;
+    }
+    if (key === 'dateRange' && value) {
+      return acc + 1;
+    }
+    return acc;
+  }, 0);
 
   const handleOpenChange = (newOpen) => {
     setOpen(newOpen);
@@ -753,50 +762,74 @@ const App = () => {
     setStatsModalVisible(true);
   };
 
-  const adminMenu = (
-    <Menu
-      items={[
+  const adminOptions = [
+    {
+      value: 'management',
+      label: 'Management',
+      children: [
         {
-          key: 'manage-dropdowns',
+          value: 'manage-dropdowns',
           label: 'Manage Dropdowns',
-          onClick: () => {
-            setDropdownModalVisible(true);
-            dropdownForm.setFieldsValue({ key: 'types', value: '', color: '' });
-          },
         },
         {
-          key: 'manage-people',
+          value: 'manage-people',
           label: 'Manage People',
-          onClick: () => setPeopleModalVisible(true),
         },
         {
-          key: 'manage-central',
+          value: 'manage-central',
           label: 'Manage Central Events',
-          onClick: () => setCentralModalVisible(true),
-        },
-        {
-          key: 'bulk-events',
-          label: 'Bulk Import Events',
-          onClick: () => {
-            setBulkEventsText('');
-            setBulkEventsPreview([]);
-            setBulkEventsErrors([]);
-            setBulkEventsOpen(true);
-          },
-        },
-        {
-          key: 'excel-export',
-          label: 'Export to Excel',
-          onClick: () => exportToExcel(),
-        },
-        {
-          key: 'db-export',
-          label: 'Export DB as JSON',
-          onClick: () => exportDB(),
         }
-      ]}
-    />
-  );
+      ]
+    },
+    {
+      value: 'exports',
+      label: 'Exports',
+      children: [
+        {
+          value: 'excel-export',
+          label: 'Export to Excel',
+        },
+        {
+          value: 'db-export',
+          label: 'Export DB as JSON',
+        }
+      ]
+    },
+    {
+      value: 'bulk-events',
+      label: 'Bulk Import Events',
+    }
+  ];
+  
+  const handleAdminSelect = (value) => {
+    const selected = value[value.length - 1];
+    switch (selected) {
+      case 'manage-dropdowns':
+        setDropdownModalVisible(true);
+        dropdownForm.setFieldsValue({ key: 'types', value: '', color: '' });
+        break;
+      case 'manage-people':
+        setPeopleModalVisible(true);
+        break;
+      case 'manage-central':
+        setCentralModalVisible(true);
+        break;
+      case 'bulk-events':
+        setBulkEventsText('');
+        setBulkEventsPreview([]);
+        setBulkEventsErrors([]);
+        setBulkEventsOpen(true);
+        break;
+      case 'excel-export':
+        exportToExcel();
+        break;
+      case 'db-export':
+        exportDB();
+        break;
+      default:
+        break;
+    }
+  };
 
   const FiltersPopover = () => {
     const content = (
@@ -822,7 +855,9 @@ const App = () => {
   
     return (
       <Popover content={content} title="Filters" trigger="click" placement="bottomLeft" open={open} onOpenChange={handleOpenChange} destroyTooltipOnHide={false}>
-        <Button icon={<FilterOutlined />} iconPosition='end'>Filters</Button>
+        <Badge count={totalSelected}>
+          <Button icon={<FilterOutlined />} iconPosition='end'>Filters</Button>
+        </Badge>
       </Popover>
     );
   }
@@ -890,9 +925,9 @@ const App = () => {
               {
                 isPasswordVerified ? 
                 (
-                  <Dropdown overlay={adminMenu} placement="bottomRight">
-                    <Button type="primary" icon={<UnlockOutlined />} iconPosition='end'>Admin Actions</Button>
-                  </Dropdown>
+                  <Cascader options={adminOptions} onChange={handleAdminSelect} placeholder="Admin Actions" style={{ width: '100%' }} dropdownRender={(menus) => menus}>
+                    <Button type="primary" icon={<UnlockOutlined />} iconPosition={'end'}>Admin Actions</Button>
+                  </Cascader>
                 ) : (
                   <Button type="primary" onClick={() => { setPasswordInputVisible(true); }} icon={<LockOutlined />} iconPosition='end'>Admin Login</Button>
                 )
