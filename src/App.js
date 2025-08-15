@@ -154,6 +154,23 @@ const App = () => {
     await axios.delete(APIURL + `centeralEvents/${id}`);
   };
 
+  const exportDB = async () => {
+    try {
+      const res = await axios.get(`${APIURL}db`);
+      const dataStr = JSON.stringify(res.data, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+  
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `db_export_${dayjs().format('YYYYMMDD_HHmm')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      message.error('DB export failed');
+    }
+  };
+  
   const exportToExcel = () => {
     const eventsRows = [['Name','Type','Team','Domain','Location','Start Date','End Date']];
     events.forEach(ev => {
@@ -719,6 +736,11 @@ const App = () => {
           key: 'excel-export',
           label: 'Export to Excel',
           onClick: () => exportToExcel(),
+        },
+        {
+          key: 'db-export',
+          label: 'Export DB (JSON)',
+          onClick: () => exportDB(),
         }
       ]}
     />
