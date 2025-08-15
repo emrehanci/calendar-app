@@ -65,6 +65,10 @@ const App = () => {
   const [bulkCentralText, setBulkCentralText] = useState('');
   const [bulkCentralPreview, setBulkCentralPreview] = useState([]);
   const [bulkCentralErrors, setBulkCentralErrors] = useState([]);
+  const [bulkEventsOpen, setBulkEventsOpen] = useState(false);
+  const [bulkEventsText, setBulkEventsText] = useState('');
+  const [bulkEventsPreview, setBulkEventsPreview] = useState([]);
+  const [bulkEventsErrors, setBulkEventsErrors] = useState([]);
 
   const countTypeUsage = (type) => events.filter(e => e.type === type).length;
   const countTeamUsage = (team) => people.filter(p => p.team === team).length;
@@ -147,6 +151,80 @@ const App = () => {
   const deleteCentral = async (id) => {
     await axios.delete(APIURL + `centeralEvents/${id}`);
   };
+
+  const parseEventsPaste = (text, people, validTypes = []) => {
+    const lines = String(text || '').trim().split(/\r?\n/).filter(Boolean);
+    const preview = [];
+    const errors = [];
+
+    if (!lines.length) return { preview, errors };
+
+    const hasHeader =
+      /name/i.test(lines[0]) &&
+      (/type/i.test(lines[0]) || /kind/i.test(lines[0])) &&
+      (/start/i.test(lines[0]) || /from/i.test(lines[0]));
+
+    const startIdx = hasHeader ? 1 : 0;
+
+    const byName = new Map(people.map(p => [p.name?.trim().toLowerCase(), p]));
+    const typeSet = new Set(validTypes || []);
+
+    for (let i = startIdx; i < lines.length; i++) {
+      const cols = lines[i].split('\t').map(c => (c ?? '').trim());
+      const [nameRaw, typeRaw, startRaw, endRaw] = [
+        cols[0] ?? '', cols[1] ?? '', cols[2] ?? '', cols[3] ?? ''
+      ];
+
+      if (!nameRaw && !typeRaw && !startRaw && !endRaw) continue;
+
+      if (!nameRaw || !typeRaw || !startRaw) {
+        errors.push({ line: i + 1, reason: 'Name, Type and Start are required.' });
+        continue;
+      }
+
+      const person = byName.get(nameRaw.toLowerCase());
+      if (!person) {
+        errors.push({ line: i + 1, reason: `No person found for name: "${nameRaw}"` });
+        continue;
+      }
+
+      const start = parseDateLoose(startRaw);
+      const end   = parseDateLoose(endRaw || startRaw);
+      if (!start || !end) {
+        errors.push({ line: i + 1, reason: 'Invalid date(s).' });
+        continue;
+      }
+      if (end.isBefore(start, 'day')) {
+        errors.push({ line: i + 1, reason: 'End cannot be before Start.' });
+        continue;
+      }
+
+      if (typeSet.size && !typeSet.has(typeRaw)) {
+        errors.push({ line: i + 1, reason: `Unknown type "${typeRaw}" (not in dropdown types)` });
+      }
+
+      preview.push({
+        id: uuidv4(),
+        user_id: person.id,
+        type: typeRaw,
+        start: start.startOf('day').format('YYYY-MM-DD'),
+        end:   end.startOf('day').format('YYYY-MM-DD'),
+        __displayName: person.name,
+      });
+    }
+
+    const uniq = [];
+    const seen = new Set();
+    for (const p of preview) {
+      const key = `${p.user_id}__${p.type}__${p.start}__${p.end}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniq.push(p);
+      }
+    }
+    return { preview: uniq, errors };
+  };
+
 
   const parseDateLoose = (raw) => {
     const s = String(raw || '').trim();
@@ -568,6 +646,16 @@ const App = () => {
           label: 'Manage Central Events',
           onClick: () => setCentralModalVisible(true),
         },
+        {
+          key: 'bulk-events',
+          label: 'Bulk Import Events',
+          onClick: () => {
+            setBulkEventsText('');
+            setBulkEventsPreview([]);
+            setBulkEventsErrors([]);
+            setBulkEventsOpen(true);
+          },
+        }
       ]}
     />
   );
@@ -1251,6 +1339,114 @@ const App = () => {
         </div>
       </Modal>
 
+      <Modal
+        width={860}
+        title="Bulk Import Events"
+        open={bulkEventsOpen}
+        onCancel={() => setBulkEventsOpen(false)}
+        okText="Import"
+        onOk={async () => {
+          if (!bulkEventsPreview.length) {
+            message.warning('There are no valid rows to import.');
+            return;
+          }
+          try {
+            // json-server has no batch: POST sequentially
+            for (const ev of bulkEventsPreview) {
+              // clean preview-only field
+              const { __displayName, ...toSave } = ev;
+              await createEvent(toSave);
+            }
+            // update client state
+            setEvents(prev => {
+              const merged = [...prev, ...bulkEventsPreview.map(({__displayName, ...r}) => r)];
+              applyFilters(merged, filters);
+              return merged;
+            });
+            message.success(`${bulkEventsPreview.length} event(s) imported`);
+            setBulkEventsOpen(false);
+            setBulkEventsText('');
+            setBulkEventsPreview([]);
+            setBulkEventsErrors([]);
+          } catch (e) {
+            message.error('Import failed');
+          }
+        }}
+      >
+        <p style={{ marginBottom: 8 }}>
+          Select the <b>Name | Type | Start | End</b> columns in Excel, <b>Copy</b>, then <b>Paste</b> below.
+          <br/>Accepted date formats: <code>YYYY-MM-DD</code>, <code>DD.MM.YYYY</code>, <code>MM/DD/YYYY</code>, etc.
+          <br/>If the first row is a <i>header</i>, it is skipped automatically.
+        </p>
+
+        <Input.TextArea
+          rows={8}
+          value={bulkEventsText}
+          onChange={(e) => {
+            const val = e.target.value;
+            setBulkEventsText(val);
+
+            const { preview, errors } = parseEventsPaste(
+              val,
+              people,
+              dropdownData?.types || []
+            );
+
+            // remove duplicates against existing events
+            const existKeys = new Set(
+              events.map(ev => `${ev.user_id}__${ev.type}__${ev.start}__${ev.end}`)
+            );
+            const dedupPreview = preview.filter(p => !existKeys.has(`${p.user_id}__${p.type}__${p.start}__${p.end}`));
+
+            setBulkEventsPreview(dedupPreview);
+            setBulkEventsErrors(errors);
+          }}
+          placeholder={`(Header optional)
+      Name\tType\tStart\tEnd
+      Jane Doe\tVacation\t2025-08-12\t2025-08-16
+      John Smith\tSick Leave\t15.08.2025\t16.08.2025`}
+        />
+
+        <Divider />
+
+        <div style={{ display:'flex', gap:16 }}>
+          <div style={{ flex:1 }}>
+            <h4 style={{ marginBottom: 8 }}>Preview ({bulkEventsPreview.length})</h4>
+            <List
+              size="small"
+              bordered
+              dataSource={bulkEventsPreview}
+              style={{ maxHeight: 260, overflow: 'auto' }}
+              renderItem={(it) => (
+                <List.Item>
+                  <Space wrap>
+                    <Tag color={typeColorMap[it.type] || 'default'}>{it.type}</Tag>
+                    <strong>{it.__displayName}</strong>
+                    <span>({it.start} → {it.end})</span>
+                  </Space>
+                </List.Item>
+              )}
+            />
+          </div>
+          <div style={{ flex:1 }}>
+            <h4 style={{ marginBottom: 8 }}>Errors ({bulkEventsErrors.length})</h4>
+            <List
+              size="small"
+              bordered
+              dataSource={bulkEventsErrors}
+              style={{ maxHeight: 260, overflow: 'auto' }}
+              renderItem={(er) => (
+                <List.Item>
+                  <Space>
+                    <Tag color="red">Line {er.line}</Tag>
+                    <span>{er.reason}</span>
+                  </Space>
+                </List.Item>
+              )}
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
